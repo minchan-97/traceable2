@@ -60,9 +60,12 @@ def experiment(data, history, branch, alternative):
         output.update(after_original=a.transitions[branch], after_alternative=b.transitions[branch])
     return output
 
-files = st.file_uploader('몰랑이 성장 기록 (.pkl) — 여러 시점 선택 가능', type=['pkl'], accept_multiple_files=True)
+files = st.file_uploader('파일 올리기 — 분석은 .pkl만 지원', accept_multiple_files=True)
 snapshots = []
 for uploaded in files:
+    if Path(uploaded.name).suffix.lower() != '.pkl':
+        st.warning(f'{uploaded.name}: .pkl 파일만 분석할 수 있어 건너뜁니다.')
+        continue
     try:
         snapshots.append((uploaded.name, read_snapshot(uploaded.getvalue())))
     except Exception as exc:
