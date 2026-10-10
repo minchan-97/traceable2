@@ -14,6 +14,8 @@ from traceable_core import series, AXIS_KO
 from traceable_adapters import from_molang
 from thought_structure import ThoughtStructure, JudgmentNode
 from answer_probe import prepare_pair, generate_pair
+from benchmark_ui import render_benchmark
+from benchmark_core import intervention_control
 
 st.set_page_config(page_title='Traceable · 몰랑이', page_icon='🌳', layout='wide')
 st.title('Traceable · 몰랑이 기록 분석')
@@ -75,7 +77,7 @@ if not snapshots:
     st.info('몰랑이 성장 기록을 올리면 분석이 시작됩니다.')
     st.stop()
 snapshots.sort(key=lambda pair: int(pair[1].get('meta', {}).get('cycle', 0)))
-tab_scores, tab_intervene = st.tabs(['시점별 지표', '분기 개입 실험'])
+tab_scores, tab_intervene, tab_benchmark = st.tabs(['시점별 지표', '분기 개입 실험', '비용·품질 벤치마크'])
 with tab_scores:
     scores = series([from_molang(d, label=name) for name, d in snapshots])
     rows = [{'파일': s['label'], '회차': s['step'], '사실 수': s['size'],
@@ -136,12 +138,12 @@ with tab_intervene:
                 st.info('저장된 피드백이 없어 학습 결과 비교는 생략했습니다.')
             st.divider()
             st.subheader('최종 답변 개입 실험')
-            st.caption('몰랑이 앱의 답변 프롬프트 생성 코드를 사용합니다. 당시 입력은 기록에서 복원하고, '
-                       '원래 선택과 대안 선택에 동일하게 넣습니다. 과거 LLM 응답을 재현하는 실험은 아닙니다.')
+            st.caption('몰랑이 답변 프롬프트 형식을 사용합니다. 저장된 context를 두 경로에 동일하게 넣습니다. '
+                       '당시의 전체 기억·집·여행 프롬프트는 기록에 없을 수 있어 과거 응답의 완전한 재현은 아닙니다.')
             wiring = st.radio('답변 노드 연결',
-                              ['현재 확인된 앱 코드: 빈 노드 사전', '판단 노드를 연결한 실험'],
+                              ['최신 몰랑이: 판단 노드 연결', '이전 앱: 빈 노드 사전'],
                               horizontal=True, key='answer_wiring')
-            node_map = {} if wiring.startswith('현재') else restore_tree(trees[tid]).nodes
+            node_map = {} if wiring.startswith('이전') else restore_tree(trees[tid]).nodes
             prepared = prepare_pair(result['original_path'], result['alternative_path'],
                                     history.get('context', ''), node_map)
             st.write('모델에 전달되는 프롬프트가 달라지는가:', prepared['prompt_changed'])
@@ -163,17 +165,19 @@ with tab_intervene:
                     api_key = ''
                 if not api_key:
                     st.info('Streamlit Secrets에 OPENAI_API_KEY를 설정하면 답변 비교를 실행할 수 있습니다.')
-                st.caption('버튼을 누르면 선택한 기록의 입력으로 모델을 두 번 호출합니다.')
+                control = st.checkbox('같은 경로 재생성 대조군 포함', value=True)
+                st.caption('대조군 포함 시 3회, 제외 시 2회 호출합니다. 문자열 차이는 품질 점수가 아닙니다.')
                 model = st.text_input('모델', value='gpt-4o-mini')
                 signature = hashlib.sha256(repr((name, tid, ri, bi, alternative,
-                                                wiring, model,
+                                                wiring, model, control,
                                                 prepared['original_prompt_hash'],
                                                 prepared['alternative_prompt_hash'])).encode()).hexdigest()
                 if st.button('두 답변 생성해 비교', disabled=not bool(api_key.strip())):
                     try:
                         from openai import OpenAI
                         with st.spinner('원래 선택과 대안 선택에 각각 같은 조건으로 요청 중…'):
-                            probe = generate_pair(OpenAI(api_key=api_key.strip()), prepared,
+                            probe = intervention_control(OpenAI(api_key=api_key.strip(), max_retries=0, timeout=45), prepared,
+                                                  model=model.strip()) if control else generate_pair(OpenAI(api_key=api_key.strip(),max_retries=0,timeout=45), prepared,
                                                   model=model.strip())
                         st.session_state['answer_probe'] = (signature, probe)
                     except Exception as exc:
@@ -182,7 +186,10 @@ with tab_intervene:
                                  + (f' (HTTP {status})' if status else '')
                                  + '. Secrets의 키 권한과 모델 이름을 확인해주세요.')
                 cached = st.session_state.get('answer_probe')
-                if cached and cached[0] == signature:
+                if cached and cached[0] == signature and cached[1].get('status') == 'error':
+                    st.error('일부 모델 호출이 실패했습니다. 성공한 비교로 집계하지 않습니다.')
+                    st.json(cached[1])
+                if cached and cached[0] == signature and cached[1].get('status') == 'generated':
                     probe = cached[1]
                     first, second = st.columns(2)
                     first.markdown('**원래 선택으로 새로 생성한 답변**')
@@ -191,6 +198,12 @@ with tab_intervene:
                     second.write(probe['alternative_answer'])
                     st.write('답변 문자 그대로 일치:', not probe['answer_changed'])
                     st.write('문자열 유사도:', probe['text_similarity'])
+                    if control:
+                        st.write('같은 경로 재생성 대조군:', probe['control_answer'])
+                        st.write('원래 답변과 대조군의 문자열 유사도:', probe['control_similarity'])
+                        st.json({k:probe[k] for k in ('calls','input_tokens','output_tokens','cached_tokens','api_seconds')})
+                        st.caption('단정 여부·판단 결과·근거 요청이 어떻게 바뀌었는지 직접 평가하세요. '
+                                   '문자열 유사도 차이만으로 인과성을 판정하지 않습니다.')
                     st.caption('실제 기록된 당시 답변과 위 두 답변은 별개입니다. '
                                '한 번의 답변 차이만으로 정확도 향상이나 인과적 충실도를 확정할 수 없습니다. '
                                '생성 시 temperature=0을 사용하지만 모델 출력은 완전 결정적이지 않을 수 있습니다.')
@@ -210,3 +223,6 @@ with tab_intervene:
                                file_name='traceable_intervention.json', mime='application/json')
         except Exception as exc:
             st.error(f'기록과 저장 시점 그래프를 연결할 수 없습니다: {exc}')
+
+with tab_benchmark:
+    render_benchmark(snapshots)
