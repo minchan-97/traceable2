@@ -5,8 +5,13 @@ import io
 import pickle
 from dataclasses import fields
 import streamlit as st
-from traceable import series, AXIS_KO
-from traceable.adapters import from_molang
+from pathlib import Path
+import sys
+
+# Streamlit 배포에서도 앱과 같은 폴더의 모듈을 먼저 사용한다.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from traceable_core import series, AXIS_KO
+from traceable_adapters import from_molang
 from thought_structure import ThoughtStructure, JudgmentNode
 
 st.set_page_config(page_title='Traceable · 몰랑이', page_icon='🌳', layout='wide')
