@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from traceable_core import series, AXIS_KO
 from traceable_adapters import from_molang
 from thought_structure import ThoughtStructure, JudgmentNode
+from answer_probe import prepare_pair, generate_pair
 
 st.set_page_config(page_title='Traceable · 몰랑이', page_icon='🌳', layout='wide')
 st.title('Traceable · 몰랑이 기록 분석')
@@ -133,7 +134,72 @@ with tab_intervene:
                               for k, v in result['before'].items()], hide_index=True, use_container_width=True)
             else:
                 st.info('저장된 피드백이 없어 학습 결과 비교는 생략했습니다.')
-            st.warning('실제 LLM 답변은 생성하지 않습니다. 경로·지시문·로컬 학습의 변화만 비교하며, 최종 발화의 변화는 입증하지 않습니다.')
+            st.divider()
+            st.subheader('최종 답변 개입 실험')
+            st.caption('몰랑이 앱의 답변 프롬프트 생성 코드를 사용합니다. 당시 입력은 기록에서 복원하고, '
+                       '원래 선택과 대안 선택에 동일하게 넣습니다. 과거 LLM 응답을 재현하는 실험은 아닙니다.')
+            wiring = st.radio('답변 노드 연결',
+                              ['현재 확인된 앱 코드: 빈 노드 사전', '판단 노드를 연결한 실험'],
+                              horizontal=True, key='answer_wiring')
+            node_map = {} if wiring.startswith('현재') else restore_tree(trees[tid]).nodes
+            prepared = prepare_pair(result['original_path'], result['alternative_path'],
+                                    history.get('context', ''), node_map)
+            st.write('모델에 전달되는 프롬프트가 달라지는가:', prepared['prompt_changed'])
+            if not prepared['prompt_changed']:
+                st.info('이 연결에서는 두 분기의 최종 답변 프롬프트가 같습니다. '
+                        '답변을 두 번 생성하면 무작위 변동만 비교하게 되어 API 호출을 생략합니다.')
+            else:
+                with st.expander('프롬프트 차이 확인'):
+                    l_prompt, r_prompt = st.columns(2)
+                    l_prompt.text_area('원래 선택의 프롬프트',
+                                       prepared['original_messages'][0]['content'],
+                                       height=250, disabled=True)
+                    r_prompt.text_area('대안 선택의 프롬프트',
+                                       prepared['alternative_messages'][0]['content'],
+                                       height=250, disabled=True)
+                import os
+                api_key = st.text_input('OpenAI API 키', type='password',
+                                        value=os.environ.get('OPENAI_API_KEY', ''),
+                                        help='버튼을 누르면 저장 기록의 입력이 선택한 모델로 전송됩니다. '
+                                             '키와 생성 결과는 서버 데이터베이스에 저장하지 않습니다.')
+                model = st.text_input('모델', value='gpt-4o-mini')
+                signature = hashlib.sha256(repr((name, tid, ri, bi, alternative,
+                                                wiring, model,
+                                                prepared['original_prompt_hash'],
+                                                prepared['alternative_prompt_hash'])).encode()).hexdigest()
+                if st.button('두 답변 생성해 비교', disabled=not bool(api_key.strip())):
+                    try:
+                        from openai import OpenAI
+                        with st.spinner('원래 선택과 대안 선택에 각각 같은 조건으로 요청 중…'):
+                            probe = generate_pair(OpenAI(api_key=api_key.strip()), prepared,
+                                                  model=model.strip())
+                        st.session_state['answer_probe'] = (signature, probe)
+                    except Exception as exc:
+                        st.error(f'모델 호출 실패: {exc}')
+                cached = st.session_state.get('answer_probe')
+                if cached and cached[0] == signature:
+                    probe = cached[1]
+                    first, second = st.columns(2)
+                    first.markdown('**원래 선택으로 새로 생성한 답변**')
+                    first.write(probe['original_answer'])
+                    second.markdown('**대안 선택으로 새로 생성한 답변**')
+                    second.write(probe['alternative_answer'])
+                    st.write('답변 문자 그대로 일치:', not probe['answer_changed'])
+                    st.write('문자열 유사도:', probe['text_similarity'])
+                    st.caption('실제 기록된 당시 답변과 위 두 답변은 별개입니다. '
+                               '한 번의 답변 차이만으로 정확도 향상이나 인과적 충실도를 확정할 수 없습니다. '
+                               '생성 시 temperature=0을 사용하지만 모델 출력은 완전 결정적이지 않을 수 있습니다.')
+                    st.download_button('답변 비교 JSON 받기',
+                                       __import__('json').dumps({
+                                           'snapshot': name, 'tree': tid,
+                                           'original_path': result['original_path'],
+                                           'alternative_path': result['alternative_path'],
+                                           'prompt_changed': prepared['prompt_changed'],
+                                           'original_prompt_hash': prepared['original_prompt_hash'],
+                                           'alternative_prompt_hash': prepared['alternative_prompt_hash'],
+                                           **probe}, ensure_ascii=False, indent=2),
+                                       file_name='traceable_answer_intervention.json',
+                                       mime='application/json')
             import json
             st.download_button('실험 결과 JSON 받기', json.dumps(result, ensure_ascii=False, indent=2),
                                file_name='traceable_intervention.json', mime='application/json')
