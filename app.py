@@ -157,11 +157,13 @@ with tab_intervene:
                     r_prompt.text_area('대안 선택의 프롬프트',
                                        prepared['alternative_messages'][0]['content'],
                                        height=250, disabled=True)
-                import os
-                api_key = st.text_input('OpenAI API 키', type='password',
-                                        value=os.environ.get('OPENAI_API_KEY', ''),
-                                        help='버튼을 누르면 저장 기록의 입력이 선택한 모델로 전송됩니다. '
-                                             '키와 생성 결과는 서버 데이터베이스에 저장하지 않습니다.')
+                try:
+                    api_key = str(st.secrets.get('OPENAI_API_KEY', '')).strip()
+                except Exception:
+                    api_key = ''
+                if not api_key:
+                    st.info('Streamlit Secrets에 OPENAI_API_KEY를 설정하면 답변 비교를 실행할 수 있습니다.')
+                st.caption('버튼을 누르면 선택한 기록의 입력으로 모델을 두 번 호출합니다.')
                 model = st.text_input('모델', value='gpt-4o-mini')
                 signature = hashlib.sha256(repr((name, tid, ri, bi, alternative,
                                                 wiring, model,
@@ -175,7 +177,10 @@ with tab_intervene:
                                                   model=model.strip())
                         st.session_state['answer_probe'] = (signature, probe)
                     except Exception as exc:
-                        st.error(f'모델 호출 실패: {exc}')
+                        status = getattr(exc, 'status_code', None)
+                        st.error(f'모델 호출 실패: {type(exc).__name__}'
+                                 + (f' (HTTP {status})' if status else '')
+                                 + '. Secrets의 키 권한과 모델 이름을 확인해주세요.')
                 cached = st.session_state.get('answer_probe')
                 if cached and cached[0] == signature:
                     probe = cached[1]
