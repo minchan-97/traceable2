@@ -46,9 +46,12 @@ def generate_pair(client, prepared, model="gpt-4o-mini"):
     if not prepared["prompt_changed"]:
         return {"status": "same_prompt", "calls": 0,
                 "why": "노드 분기를 바꿔도 모델에 전달되는 메시지가 같습니다."}
+    from benchmark_core import Meter, totals
+    client = Meter(client, 2)
     answers = []
     for messages in (prepared["original_messages"],
                      prepared["alternative_messages"]):
+        client.stage = 'answer_pair'
         response = client.chat.completions.create(
             model=model, messages=messages, temperature=0, max_tokens=400)
         answers.append((response.choices[0].message.content or "").strip())
@@ -57,4 +60,5 @@ def generate_pair(client, prepared, model="gpt-4o-mini"):
             "temperature": 0, "original_answer": original,
             "alternative_answer": alternative,
             "answer_changed": original != alternative,
-            "text_similarity": round(SequenceMatcher(None, original, alternative).ratio(), 3)}
+            "text_similarity": round(SequenceMatcher(None, original, alternative).ratio(), 3),
+            "call_log": client.calls, **totals(client.calls)}
