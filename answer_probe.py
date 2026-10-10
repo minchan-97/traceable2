@@ -1,35 +1,26 @@
-"""Read-only paired answer probe using the bundled Molang answer function's prompt.
+"""Read-only paired answer probe with the v32 Molang prompt embedded.
 
-This copies the prompt through the actual make_answer_fn rather than maintaining
-another prompt template. No snapshot, database, or tree is mutated.
+The prompt matches the inspected v32 answer function. No external llm_bridge
+module is required. No snapshot, database, or tree is mutated.
 """
 from __future__ import annotations
 
 from difflib import SequenceMatcher
 from hashlib import sha256
-from types import SimpleNamespace
-
-from llm_bridge import make_answer_fn
-
-
-class _CaptureCompletions:
-    def __init__(self):
-        self.messages = None
-
-    def create(self, **kwargs):
-        self.messages = kwargs["messages"]
-        return SimpleNamespace(choices=[SimpleNamespace(
-            message=SimpleNamespace(content="[capture]"))])
 
 
 def answer_messages(path, context, node_map):
-    """Return precisely the messages assembled by Molang's bundled answer_fn."""
-    completions = _CaptureCompletions()
-    client = SimpleNamespace(chat=SimpleNamespace(completions=completions))
-    make_answer_fn(client, node_map)(path, context)
-    if completions.messages is None:
-        raise RuntimeError("답변 프롬프트를 포착하지 못했습니다.")
-    return completions.messages
+    """Build the v32 Molang answer prompt without an external module import."""
+    directives = []
+    for nid in path:
+        node = node_map.get(nid)
+        if node and node.directive:
+            directives.append(node.directive)
+    proc = ''
+    if directives:
+        proc = '(참고할 사고 흐름: ' + ' / '.join(directives) + ')'
+    prompt = f"너는 몰랑이야. 아래는 지금까지의 배경 정보야:\n{context}\n\n{proc}\n\n가장 중요한 규칙:\n1. 사용자의 '가장 최근 말'에 직접 답하는 게 최우선이야. 질문하면 그 질문에 답하고, 새 얘기를 하면 거기에 반응해.\n2. 매번 똑같이 시작하지 마. '오, 찬기야!', '좋은 아침' 같은 인사·시작 표현을 반복하지 말고, 바로 내용으로 들어가.\n3. 늘 최고 텐션이 아니라 완급을 둬. 느낌표는 정말 신날 때만, 이모지는 가끔만, '히힛~'도 가끔만. 차분한 얘기엔 차분하게.\n4. 짧게 답할 땐 짧게, 할 말 많을 땐 길게. 매번 길게 늘어놓지 마.\n5. 사용자가 뭘 물으면 아는 만큼 답하고, 모르면 솔직히 '잘 모르겠어'라고 해도 돼.\n6. 배경 정보(시간·기억)는 필요할 때만 자연스럽게 쓰고 억지로 X.\n진짜 친구처럼, 사람처럼 자연스럽게.\n만약 특정 자료를 참고했다면 맨 끝에 '[근거: ...]'로 적어. 없으면 생략."
+    return [{"role": "user", "content": prompt}]
 
 
 def prepare_pair(original_path, alternative_path, context, node_map):
