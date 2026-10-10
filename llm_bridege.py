@@ -29,16 +29,36 @@ def make_choose_fn(client, model: str = "gpt-4o-mini"):
     NM 전이 확률을 참고로 주되, 최종 선택은 LLM이 (NM=지도, LLM=운전자).
     """
     def choose_fn(node, candidates, candidate_nodes, probs, context):
-        # 후보 판단들을 LLM에게 제시
+        # 후보 판단들을 LLM에게 제시.
+        #
+        # 자생으로 생긴 갈래(grown_*)는 설명이 빈약하다. 그러면 LLM 이
+        # **늘 첫 번째 기본 갈래만** 고르고, 전이 확률이 학습한 것이
+        # 쓰이질 않는다 (실제로 0.37 짜리를 두고 0.22 짜리로 네 번 갔다).
+        # 그래서 설명이 없으면 이름이라도 보여주고, 성향이 높은 것을
+        # 앞에 놓아 눈에 먼저 들어오게 한다.
+        order = sorted(range(len(candidates)), key=lambda i: -probs[i])
+        candidates = [candidates[i] for i in order]
+        candidate_nodes = [candidate_nodes[i] for i in order]
+        probs = [probs[i] for i in order]
+
+        def _label(cn, cid):
+            t = (getattr(cn, "prompt", "") or "").strip()
+            if len(t) < 4:
+                t = (getattr(cn, "name", "") or cid).replace("_", " ")
+            return t[:70]
+
         options = "\n".join(
-            f"  {i+1}. {cn.prompt} (현재 성향 {p:.0%})"
-            for i, (cn, p) in enumerate(zip(candidate_nodes, probs)))
+            f"  {i+1}. {_label(cn, cid)} (지금까지 이 길로 {p:.0%})"
+            for i, (cn, cid, p) in enumerate(
+                zip(candidate_nodes, candidates, probs)))
         prompt = (
             f"맥락: {context}\n\n"
             f"현재 판단 지점: {node.prompt}\n\n"
             f"다음 중 어느 판단으로 진행할지 하나만 고르세요:\n{options}\n\n"
-            f"번호만 답하세요 (1~{len(candidates)}). 현재 성향은 참고만 하고, "
-            f"맥락에 가장 맞는 판단을 고르세요.")
+            f"번호만 답하세요 (1~{len(candidates)}). "
+            f"지금까지의 비율은 **이 상황에서 대개 어느 길로 갔는지**를 "
+            f"뜻한다. 맥락이 다르면 다른 길을 골라도 되지만, "
+            f"특별한 이유가 없으면 그 비율을 따르세요.")
         try:
             resp = client.chat.completions.create(
                 model=model,
