@@ -17,8 +17,8 @@ from statistics import mean
 from uuid import uuid4
 
 from answer_probe import answer_messages
-from benchmark_core import Meter, totals, valid_trees, restore, catalog
-from llm_bridge import make_classifier, make_choose_fn
+from benchmark_core import (Meter, totals, valid_trees, restore, catalog,
+                            make_classifier, make_choose_fn)
 from quality_core import digest, validate_path, node_map, judge_pair, import_reviews, blind_packet, METRICS
 
 STRUCTURE = {'direct':'구조 없음', 'path':'기존 경로', 'repeat':'같은 경로 재생성', 'changed':'개입 경로'}
