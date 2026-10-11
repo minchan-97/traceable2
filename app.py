@@ -16,11 +16,12 @@ from thought_structure import ThoughtStructure, JudgmentNode
 from answer_probe import prepare_pair, generate_pair
 from benchmark_ui import render_benchmark
 from quality_ui import render_quality
+from objective_ui import render_objective
 from benchmark_core import intervention_control
 
 st.set_page_config(page_title='Traceable · 몰랑이', page_icon='🌳', layout='wide')
 st.title('Traceable · 몰랑이 기록 분석')
-st.caption('피클 시점 비교와 로컬 분기 개입 실험')
+st.caption('v3 · 시점 비교 · 분기 개입 · 객관 정답과 동결 판단 파이프라인 시험')
 
 class SafeUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
@@ -78,7 +79,7 @@ if not snapshots:
     st.info('몰랑이 성장 기록을 올리면 분석이 시작됩니다.')
     st.stop()
 snapshots.sort(key=lambda pair: int(pair[1].get('meta', {}).get('cycle', 0)))
-tab_scores, tab_intervene, tab_benchmark, tab_quality = st.tabs(['시점별 지표', '분기 개입 실험', '비용·품질 벤치마크', '판단 품질 시험'])
+tab_scores, tab_intervene, tab_benchmark, tab_quality, tab_objective = st.tabs(['시점별 지표', '분기 개입 실험', '비용·품질 벤치마크', '판단 품질 시험', '객관·파이프라인 시험'])
 with tab_scores:
     scores = series([from_molang(d, label=name) for name, d in snapshots])
     rows = [{'파일': s['label'], '회차': s['step'], '사실 수': s['size'],
@@ -230,3 +231,6 @@ with tab_benchmark:
 
 with tab_quality:
     render_quality(snapshots)
+
+with tab_objective:
+    render_objective(snapshots)
