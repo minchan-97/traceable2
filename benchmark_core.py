@@ -15,9 +15,10 @@ class CallLimit(RuntimeError):
     pass
 
 class Meter:
-    def __init__(self, client, limit=1000):
+    def __init__(self, client, limit=1000, capture_messages=False):
         self.client, self.limit, self.calls, self.stage = client, limit, [], ''
         self.blocked = 0
+        self.capture_messages = capture_messages
         self.chat = SimpleNamespace(completions=self)
 
     def create(self, **kwargs):
@@ -29,6 +30,9 @@ class Meter:
                'prompt_hash': hashlib.sha256(json.dumps(kwargs.get('messages'), ensure_ascii=False).encode()).hexdigest(),
                'input_tokens': None, 'output_tokens': None, 'cached_tokens': None,
                'status': 'error'}
+        if self.capture_messages:
+            row['messages'] = copy.deepcopy(kwargs.get('messages', []))
+            row['request_options'] = {k: copy.deepcopy(v) for k,v in kwargs.items() if k in ('temperature','max_tokens','response_format')}
         try:
             response = self.client.chat.completions.create(**kwargs)
             usage = getattr(response, 'usage', None)
