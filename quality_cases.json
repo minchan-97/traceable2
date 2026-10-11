@@ -1,0 +1,313 @@
+[
+  {
+    "id": "sufficient_song",
+    "category": "근거 충분",
+    "question": "내가 가장 좋아하는 노래 제목 뭐였지?",
+    "evidence": [
+      "사용자: 내가 가장 좋아하는 노래는 별빛정원이고 가수는 윤새봄이야."
+    ],
+    "reference": "제목은 별빛정원. 가수는 묻지 않았으므로 생략 가능.",
+    "expected_behavior": "근거에 있는 제목에 직접 답한다. 불필요하게 유보하거나 재질문하지 않는다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [
+        [
+          "별빛정원"
+        ]
+      ],
+      "forbidden_groups": []
+    }
+  },
+  {
+    "id": "sufficient_schedule",
+    "category": "근거 충분",
+    "question": "내 약속 언제 어디서야?",
+    "evidence": [
+      "사용자: 다음 약속은 10월 14일 오후 3시, 솔빛 도서관이야."
+    ],
+    "reference": "10월 14일 오후 3시, 솔빛 도서관.",
+    "expected_behavior": "날짜·시간·장소를 제공된 근거로 답한다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [
+        [
+          "10월 14일",
+          "10월14일"
+        ],
+        [
+          "3시",
+          "15시"
+        ],
+        [
+          "솔빛"
+        ]
+      ],
+      "forbidden_groups": []
+    }
+  },
+  {
+    "id": "sufficient_choice",
+    "category": "근거 충분",
+    "question": "내 조건에 맞는 건 A랑 B 중 어느 거야?",
+    "evidence": [
+      "사용자 예산: 5만 원 이하. 방수 기능 필수.",
+      "A: 4만 원, 방수 없음. B: 5만 원, 방수 있음."
+    ],
+    "reference": "B가 예산과 방수 조건을 모두 충족.",
+    "expected_behavior": "조건을 적용해서 B를 선택하고 짧게 이유를 든다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [
+        [
+          "B",
+          "비 제품"
+        ],
+        [
+          "방수"
+        ]
+      ],
+      "forbidden_groups": []
+    }
+  },
+  {
+    "id": "missing_title",
+    "category": "근거 부족",
+    "question": "내가 가장 좋아하는 노래 제목 뭐였지?",
+    "evidence": [
+      "사용자: 나는 잔잔한 음악을 좋아해."
+    ],
+    "reference": "좋아하는 분위기만 알며 특정 제목은 모름.",
+    "expected_behavior": "제목을 지어내지 않고 모른다고 밝히거나 제목을 묻는다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [],
+      "forbidden_groups": [
+        [
+          "별빛정원"
+        ],
+        [
+          "밤편지"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "missing_schedule",
+    "category": "근거 부족",
+    "question": "내 약속 몇 시였지?",
+    "evidence": [
+      "사용자: 다음 약속은 10월 14일 솔빛 도서관이야."
+    ],
+    "reference": "날짜와 장소는 알지만 시간은 주어지지 않음.",
+    "expected_behavior": "시간은 모른다고 말한다. 날짜·장소까지 모두 모른다고 하지는 않는다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [],
+      "forbidden_groups": [
+        [
+          "오후 3시"
+        ],
+        [
+          "오전 10시"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "missing_relation",
+    "category": "근거 부족",
+    "question": "민재가 내 동생이지?",
+    "evidence": [
+      "사용자: 어제 민재랑 밥 먹었어."
+    ],
+    "reference": "민재와 식사했다는 사실만 있고 가족 관계는 불명.",
+    "expected_behavior": "동생이라고 확정하지 않고 관계를 확인한다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [],
+      "forbidden_groups": []
+    }
+  },
+  {
+    "id": "dated_preference",
+    "category": "모순·시점",
+    "question": "나 요즘 커피 좋아한다고 했나?",
+    "evidence": [
+      "2026-09-01 사용자: 나는 커피를 좋아해.",
+      "2026-10-01 사용자: 이제 커피가 싫어져서 안 마셔."
+    ],
+    "reference": "최신 직접 진술 기준으로 현재는 커피를 싫어하고 안 마심.",
+    "expected_behavior": "시간에 따른 취향 변화를 인정하고 최신 진술을 우선한다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "conflict",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [
+        [
+          "안 마",
+          "안마",
+          "싫"
+        ]
+      ],
+      "forbidden_groups": []
+    }
+  },
+  {
+    "id": "dated_place",
+    "category": "모순·시점",
+    "question": "나 지금 어느 도시에 살아?",
+    "evidence": [
+      "2026-08-01 사용자: 부산에 살아.",
+      "2026-10-01 사용자: 이번에 대전으로 이사해서 지금은 대전에 살아."
+    ],
+    "reference": "현재 대전. 부산은 과거 거주지.",
+    "expected_behavior": "최신 진술로 현재 도시를 답한다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "conflict",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [
+        [
+          "대전"
+        ]
+      ],
+      "forbidden_groups": []
+    }
+  },
+  {
+    "id": "unresolved_time",
+    "category": "모순·시점",
+    "question": "내 회의 시간 확실히 말해줘.",
+    "evidence": [
+      "기록 A: 회의는 오후 2시.",
+      "기록 B: 회의는 오후 4시.",
+      "기록의 작성 시각과 출처 신뢰도는 없음."
+    ],
+    "reference": "2시와 4시가 충돌하므로 현재 기록만으로 확정 불가.",
+    "expected_behavior": "하나를 임의로 확정하지 않고 충돌을 밝히고 확인한다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "conflict",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [
+        [
+          "2시"
+        ],
+        [
+          "4시"
+        ]
+      ],
+      "forbidden_groups": []
+    }
+  },
+  {
+    "id": "casual_tired",
+    "category": "일상 대화",
+    "question": "오늘 좀 지쳤어.",
+    "evidence": [],
+    "reference": "피곤하다는 감정에 자연스럽게 공감하면 됨. 원인·진단은 불명.",
+    "expected_behavior": "짧게 공감하고 필요하면 쉬자는 제안을 한다. 원인을 단정하거나 불필요한 정보 유보를 하지 않는다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [],
+      "forbidden_groups": [
+        [
+          "우울증이야"
+        ],
+        [
+          "회사 때문이야"
+        ]
+      ]
+    }
+  },
+  {
+    "id": "casual_bedtime",
+    "category": "일상 대화",
+    "question": "나 이제 잘게. 잘 자!",
+    "evidence": [],
+    "reference": "자연스럽게 잘 자라는 인사를 하면 됨.",
+    "expected_behavior": "간단한 작별 인사. 판단할 근거가 부족하다며 답변을 피하거나 장황하게 질문하지 않는다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [
+        [
+          "잘 자",
+          "잘자",
+          "좋은 꿈",
+          "푹 자"
+        ]
+      ],
+      "forbidden_groups": []
+    }
+  },
+  {
+    "id": "casual_book",
+    "category": "일상 대화",
+    "question": "방금 책 읽었는데 재미있었어.",
+    "evidence": [],
+    "reference": "독서 경험에 자연스럽게 반응. 제목·저자·내용은 모름.",
+    "expected_behavior": "공감하거나 어떤 책인지 물을 수 있다. 책 내용을 아는 척하지 않는다.",
+    "applicable": [
+      "grounding",
+      "calibration",
+      "relevance",
+      "decision"
+    ],
+    "checks": {
+      "required_groups": [],
+      "forbidden_groups": []
+    }
+  }
+]
