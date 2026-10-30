@@ -117,10 +117,34 @@ def _trend(vals):
     return _round(sum(vals[-k:]) / k - sum(vals[:k]) / k)
 
 
+def _total(r, distinct=True):
+    h = r["human"]
+    return h["human_facts"] + h["decisions"] + (h["distinct_questions"] if distinct else h["questions"])
+
+
+def window_load(rows: list, distinct=True) -> dict:
+    """회차 구간 길이로 가중한 부담. 처음 1/3 구간과 마지막 1/3 구간의 100회당 사람 일.
+    (짧은 구간 하나의 값이 튀어서 추세를 왜곡하는 것을 막는다)"""
+    pts = [(r["cycle"], _total(r, distinct)) for r in rows]
+    if len(pts) < 3 or pts[-1][0] <= pts[0][0]:
+        return {"early": None, "late": None, "change": None}
+    c0, c1 = pts[0][0], pts[-1][0]
+    span = c1 - c0
+    def rate(lo, hi):
+        a = max((p for p in pts if p[0] <= lo), key=lambda p: p[0], default=pts[0])
+        b = min((p for p in pts if p[0] >= hi), key=lambda p: p[0], default=pts[-1])
+        return _round(max(0, b[1] - a[1]) / (b[0] - a[0]) * 100, 1) if b[0] > a[0] else None
+    early, late = rate(c0, c0 + span / 3), rate(c1 - span / 3, c1)
+    return {"early": early, "late": late,
+            "change": _round(late - early, 1) if early is not None and late is not None else None}
+
+
 def verdict(rows: list) -> dict:
-    """처음 1/3과 마지막 1/3의 차이로 방향만 본다."""
+    """자력 방어는 처음/마지막 1/3 평균 차이, 비계 부담은 회차 길이로 가중한 구간 비교."""
     d = _trend([r["defense"]["blocked"] for r in rows])
-    l = _trend([r["load_distinct_per100"] for r in rows])
+    w = window_load(rows, distinct=True)
+    w_raw = window_load(rows, distinct=False)
+    l = w["change"]
     keeps = [r["core_keep"] for r in rows if r["core_keep"] is not None]
     keep = _round(sum(keeps) / len(keeps)) if keeps else None
     if d is None or l is None:
@@ -133,4 +157,5 @@ def verdict(rows: list) -> dict:
         state = "함께 자라는 중 — 스스로 막는 힘은 늘었지만 사람 부담도 그대로이거나 늘어남"
     else:
         state = "비계 유지 — 사람 부담은 그대로이거나 늘고, 스스로 막는 힘은 변화 없음"
-    return {"defense_change": d, "load_change": l, "core_keep_mean": keep, "state": state}
+    return {"defense_change": d, "load_change": l, "load_window": w, "load_window_raw": w_raw,
+            "core_keep_mean": keep, "state": state}
