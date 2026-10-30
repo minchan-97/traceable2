@@ -25,9 +25,12 @@ def render_scaffold(snapshots):
     st.markdown(f"#### 판정: {v['state']}")
     c1, c2, c3 = st.columns(3)
     c1.metric('자력 방어 변화', v['defense_change'], help='마지막 1/3 평균 − 처음 1/3 평균. 올라가면 좋음')
-    c2.metric('비계 부담 변화(100회당)', v['load_change'], help='서로 다른 질문 기준. 내려가면 좋음')
+    c2.metric('비계 부담 변화(100회당)', v['load_change'], help='처음 1/3 구간 → 마지막 1/3 구간, 회차 길이로 가중. 서로 다른 질문 기준. 내려가면 좋음')
     c3.metric('핵심 목적 유지(평균)', v['core_keep_mean'], help='1에 가까울수록 직전 시점과 같은 핵심 목적')
 
+    w, wr = v.get('load_window') or {}, v.get('load_window_raw') or {}
+    st.caption(f"구간 부담(100회당) — 실질: {w.get('early')} → {w.get('late')} · 전체: {wr.get('early')} → {wr.get('late')}. "
+               '실질과 전체의 차이가 벌어지면 같은 질문을 반복해서 보내는 비율이 늘고 있다는 뜻입니다.')
     if len(rows) >= 2:
         l, r = st.columns(2)
         with l:
