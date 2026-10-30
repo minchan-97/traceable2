@@ -239,10 +239,36 @@ def _weekly(items, pred) -> list:
     return [{"week": w, "n": weeks[w]} for w in sorted(weeks)]
 
 
+_QUOTED = re.compile(r'"([^"]{4,})"')
+
+
+def _question_key(o: dict) -> str:
+    """같은 질문 판별용 키. 따옴표 안 문장들이 있으면 순서와 상관없이 그 묶음, 없으면 본문."""
+    quoted = sorted(_norm(x) for x in _QUOTED.findall(str(o.get("body") or "")))
+    return (o.get("rule") or "") + "|" + ("||".join(quoted) if quoted else _norm(o.get("body"))[:80])
+
+
+def repeated_questions(outbox) -> dict:
+    """사람에게 같은 질문을 여러 번 보냈는지 — 답을 못 받고 같은 자리를 맴도는 고리 신호."""
+    keys = Counter(_question_key(o) for o in outbox or [] if o.get("body"))
+    asked = sum(keys.values())
+    repeats = sum(c - 1 for c in keys.values() if c > 1)
+    by_rule = Counter()
+    for k, c in keys.items():
+        if c > 1:
+            by_rule[k.split("|", 1)[0]] += c - 1
+    worst = keys.most_common(1)
+    return {"asked": asked, "distinct": len(keys), "repeat_share": _round(repeats / asked) if asked else None,
+            "repeats_by_rule": dict(by_rule.most_common()), "max_same_question": worst[0][1] if worst else 0}
+
+
 def conflicts(d: dict) -> dict:
     outbox = d.get("outbox") or []
     q = d.get("quarantine") or []
-    return {"conflict_questions": sum(1 for o in outbox if o.get("rule") == "conflict"),
+    conflict_items = [o for o in outbox if o.get("rule") == "conflict"]
+    return {"conflict_questions": len(conflict_items),
+            "conflict_distinct": len({_question_key(o) for o in conflict_items}),
+            "repeated_questions": repeated_questions(outbox),
             "conflict_weekly": _weekly(outbox, lambda o: o.get("rule") == "conflict"),
             "quarantine_reasons": dict(Counter(x.get("reason") for x in q).most_common()),
             "quarantine_resolved": dict(Counter(str(x.get("resolved")) for x in q).most_common()),
@@ -356,7 +382,8 @@ def summary_row(rep: dict) -> dict:
         "탐색 다양성(앞→뒤)": f"{ex.get('early', {}).get('topic_diversity')} → {ex.get('late', {}).get('topic_diversity')}",
         "자기 생성 사실": b.get("self_generated_share"),
         "사람 개입/100회": h.get("per_100_cycles"),
-        "모순 질문": rep["conflicts"]["conflict_questions"],
+        "모순 질문(서로 다른)": f"{rep['conflicts']['conflict_questions']}({rep['conflicts'].get('conflict_distinct')})",
+        "같은 질문 반복": (rep["conflicts"].get("repeated_questions") or {}).get("repeat_share"),
         "핵심 목적 판수": p.get("core_versions"),
         "목적 근거 연결": p.get("grounded_rate"),
         "핵심 수렴(앞→뒤)": f"{p.get('core_alignment_early')} → {p.get('core_alignment_late')}",
@@ -400,6 +427,9 @@ def signals(rep: dict) -> list:
     cut = [t["목록"] for t in rep["truncation"] if t["잘림"]]
     if cut:
         add("해석 제한", "기록 잘림", ", ".join(cut) + " — 이 목록의 지표는 남은 구간만 본 것")
+    rq = rep["conflicts"].get("repeated_questions") or {}
+    if (rq.get("repeat_share") or 0) >= 0.2:
+        add("주의", "같은 질문 반복", f"보낸 질문의 {int(rq['repeat_share'] * 100)}%가 이미 했던 질문 · 한 질문 최대 {rq['max_same_question']}번 · 규칙별 {rq['repeats_by_rule']}")
     h = rep["human"]
     if (h.get("per_100_cycles") or 0) >= 30:
         add("교란 변수", "사람 개입 많음", f"100회당 {h['per_100_cycles']}건 — 안정성이 구조 덕인지 사람 덕인지 이 기록만으로는 구분 불가")
@@ -444,8 +474,10 @@ def compare(a: dict, b: dict, window_cap: int | None = 1200) -> dict:
         return "약한 기억 정리"
     lost = Counter(bucket(k) for k in lost_keys)
     human_a = [k for k, f in fa.items() if f.get("trust") == "human"]
-    core_a = [p.get("purpose") for p in a.get("purposes") or [] if p.get("status") == "core"]
-    core_b = [p.get("purpose") for p in b.get("purposes") or [] if p.get("status") == "core"]
+    by_time = lambda d: sorted([p for p in d.get("purposes") or [] if p.get("status") == "core"],
+                               key=lambda p: _ts(p.get("created_at")) or 0)
+    core_a = [p.get("purpose") for p in by_time(a)]   # 오래된 판 → 최신 판 (내보내기 목록은 최신이 앞에 올 수 있음)
+    core_b = [p.get("purpose") for p in by_time(b)]
     pa = {p.get("id") for p in a.get("purposes") or []}
     pb = {p.get("id") for p in b.get("purposes") or []}
     return {
