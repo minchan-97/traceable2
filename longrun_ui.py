@@ -24,6 +24,7 @@ def render_longrun(snapshots):
             '- **탐색 다양성**: 탐색 주제 중 서로 다른 주제의 비율. 줄어들면 같은 주제만 맴도는 중입니다.\n'
             '- **자기 생성 사실**: 사람에게서 온 사실이 아니라 또래·마을·꿈·여행 같은 몰랑이 세계에서 생긴 사실의 비율. '
             '늘어나면 스스로 만든 이야기가 신념을 채우는 중입니다(자기 강화 위험).\n'
+            '- **같은 질문 반복**: 사람에게 이미 보낸 질문을 다시 보낸 비율. 높으면 답을 못 받고 같은 자리를 맴도는 고리입니다.\n'
             '- **사람 개입**: 사람이 준 사실, 격리 판정, 보낸 질문의 양. 많을수록 안정성이 구조 덕인지 사람 덕인지 구분하기 어렵습니다.\n'
             '- **목적 근거 연결**: 목적에 이유가 있고, 출발 주제가 실제 관심·탐색 기록에 있는 비율.\n'
             '- **핵심 수렴 / 목적 다양성**: 하위 목적이 핵심 목적의 낱말을 얼마나 공유하는지, 하위 목적끼리 얼마나 다른지. '
@@ -72,6 +73,10 @@ def render_longrun(snapshots):
         st.write('격리 사유:', q['quarantine_reasons'])
         st.write('격리 판정:', q['quarantine_resolved'], ' · 걸러낸 어시스턴트 에코:', q['echo_caught'])
         st.write('사람에게 보낸 질문:', h['questions_sent'], ' · 핵심 목적 확인 요청:', h['core_purpose_asks'])
+        rq = q.get('repeated_questions') or {}
+        st.write('같은 질문 반복:', rq.get('repeat_share'), ' · 서로 다른 질문', rq.get('distinct'), '/', rq.get('asked'),
+                 ' · 한 질문 최대', rq.get('max_same_question'), '번 · 규칙별 반복', rq.get('repeats_by_rule'))
+        st.write('모순 질문:', q['conflict_questions'], '건 (서로 다른 질문', q.get('conflict_distinct'), '건)')
 
     with st.expander('목적 변화 이력'):
         p = rep['purposes']
