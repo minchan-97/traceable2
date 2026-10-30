@@ -18,10 +18,11 @@ from benchmark_ui import render_benchmark
 from quality_ui import render_quality
 from objective_ui import render_objective
 from benchmark_core import intervention_control
+from longrun_ui import render_longrun
 
 st.set_page_config(page_title='Traceable · 몰랑이', page_icon='🌳', layout='wide')
 st.title('Traceable · 몰랑이 기록 분석')
-st.caption('v3 · 시점 비교 · 분기 개입 · 객관 정답과 동결 판단 파이프라인 시험')
+st.caption('v4 · 시점 비교 · 장기 안정성 관찰 · 분기 개입 · 객관 정답과 동결 판단 파이프라인 시험')
 
 class SafeUnpickler(pickle.Unpickler):
     def find_class(self, module, name):
@@ -79,7 +80,7 @@ if not snapshots:
     st.info('몰랑이 성장 기록을 올리면 분석이 시작됩니다.')
     st.stop()
 snapshots.sort(key=lambda pair: int(pair[1].get('meta', {}).get('cycle', 0)))
-tab_scores, tab_intervene, tab_benchmark, tab_quality, tab_objective = st.tabs(['시점별 지표', '분기 개입 실험', '비용·품질 벤치마크', '판단 품질 시험', '객관·파이프라인 시험'])
+tab_scores, tab_longrun, tab_intervene, tab_benchmark, tab_quality, tab_objective = st.tabs(['시점별 지표', '장기 안정성 관찰', '분기 개입 실험', '비용·품질 벤치마크', '판단 품질 시험', '객관·파이프라인 시험'])
 with tab_scores:
     scores = series([from_molang(d, label=name) for name, d in snapshots])
     rows = [{'파일': s['label'], '회차': s['step'], '사실 수': s['size'],
@@ -88,6 +89,9 @@ with tab_scores:
     st.caption('0~1 비율. 빈 값은 미측정입니다. 집계 단위는 판단 건수가 아니라 트리입니다.')
     st.warning('이 점수는 XAI의 인과적 충실도 점수가 아닙니다. 근거 연결률은 트리의 기억 보유, 학습 반영률은 현재 가중치의 편차, 상태 유래율은 단어 겹침을 측정합니다. 출처에는 기본값이 포함될 수 있습니다.')
     st.caption('현재 몰랑이 어댑터는 replayable을 설정하지 않아 재현 가능률이 0으로 나올 수 있습니다. 이는 재현 실패율을 뜻하지 않습니다. 연속성은 확신한 동일 사실 문장의 유지율입니다.')
+    st.caption('주의: 이 연속성은 기억 창(예전 400건) 밀림을 소실로 셉니다. 창 밀림과 진짜 소실을 나눈 비교는 "장기 안정성 관찰" 탭을 보세요.')
+with tab_longrun:
+    render_longrun(snapshots)
     with st.expander('원시 집계 보기'):
         st.json(scores)
 with tab_intervene:
